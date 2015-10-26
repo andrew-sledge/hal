@@ -9,6 +9,6 @@ Read from a redis list and post to Slack. You know, all that chatops stuff.
             --slack_channel     string      default=NONE (REQUIRED)
             --slack_token       string      default=NONE (REQUIRED)
             --watch_interval    int         default=3
-            --debug             bool        false
-            --json              bool        false
+            --debug             bool        default=false
+            --json              bool        default=false
 ```
