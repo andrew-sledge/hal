@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"github.com/fzzy/radix/extra/cluster"
@@ -9,6 +10,7 @@ import (
 	"github.com/nlopes/slack"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -27,7 +29,6 @@ func pull(rtm *slack.RTM, o Opts) {
 	/*
 		Using a FIFO queue
 	*/
-
 	t := time.Now()
 	ts := t.Format("Mon Jan 2 15:04:05 -0700 MST 2006")
 	rc, err := cluster.NewCluster(o.redis_connection)
@@ -111,6 +112,26 @@ func pull(rtm *slack.RTM, o Opts) {
 
 		time.Sleep(time.Duration(o.watch_interval) * time.Millisecond)
 	}
+}
+
+func get_channel(rtm *slack.RTM, lookfor string) (string, error) {
+	has_hash := strings.HasPrefix(strings.Trim(lookfor, " "), "#")
+	if has_hash {
+		lookfor = strings.TrimPrefix(strings.Trim(lookfor, " "), "#")
+	}
+	l, err := rtm.GetChannels(false)
+	if err != nil {
+		t := time.Now()
+		ts := t.Format("Mon Jan 2 15:04:05 -0700 MST 2006")
+		fmt.Printf("[%s] ERROR Channel list error: %s\n", ts, err)
+		os.Exit(1)
+	}
+	for _, v := range l {
+		if v.Name == lookfor {
+			return v.ID, nil
+		}
+	}
+	return "", errors.New("No channel found with this name")
 }
 
 func talk(rtm *slack.RTM, o Opts) {
@@ -219,11 +240,12 @@ func main() {
 		o.watch_interval = wi
 	}
 
-	sc_e, err := os.LookupEnv("SLACK_CHANNEL")
+	var sc_e string
+	sc_e_temp, err := os.LookupEnv("SLACK_CHANNEL")
 	if err == false {
-		flag.StringVar(&o.slack_channel, "slack_channel", "", "Slack channel (required)")
+		flag.StringVar(&sc_e, "slack_channel", "", "Slack channel (required)")
 	} else {
-		o.slack_channel = sc_e
+		sc_e = sc_e_temp
 	}
 
 	st_e, err := os.LookupEnv("SLACK_TOKEN")
@@ -259,13 +281,6 @@ func main() {
 
 	flag.Parse()
 
-	if len(o.slack_token) == 0 || len(o.slack_channel) == 0 {
-		fmt.Printf("[%s] ERROR Slack Token or Slack Channel not specified\n", ts)
-		os.Exit(1)
-	} else {
-		fmt.Printf("[%s] Slack Token: %s, Slack Channel: %s\n", ts, o.slack_token, o.slack_channel)
-	}
-
 	api := slack.New(o.slack_token)
 	if o.debug {
 		api.SetDebug(true)
@@ -273,6 +288,21 @@ func main() {
 
 	rtm := api.NewRTM()
 	go rtm.ManageConnection()
+
+	my_channel, errc := get_channel(rtm, sc_e)
+	if errc != nil {
+		fmt.Printf("[%s] ERROR %s\n", ts, errc.Error())
+		os.Exit(1)
+	}
+	o.slack_channel = my_channel
+
+	if len(o.slack_token) == 0 || len(o.slack_channel) == 0 {
+		fmt.Printf("[%s] ERROR Slack Token or Slack Channel not specified\n", ts)
+		os.Exit(1)
+	} else {
+		fmt.Printf("[%s] Slack Token: %s, Slack Channel: %s\n", ts, o.slack_token, o.slack_channel)
+	}
+
 	go pull(rtm, o)
 	talk(rtm, o)
 }
