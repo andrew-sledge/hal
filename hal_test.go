@@ -6,5 +6,5 @@ import (
 )
 
 func TestSlack(t *testing.T) {
-	fmt.Println("Hello GO CD testing!")
+	fmt.Println("Nothing to see here. It's really just glue.")
 }
