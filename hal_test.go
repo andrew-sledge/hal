@@ -6,5 +6,5 @@ import (
 )
 
 func TestSlack(t *testing.T) {
-	fmt.Println("Hello GO testing!")
+	fmt.Println("Hello GO CD testing!")
 }
